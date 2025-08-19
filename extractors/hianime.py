@@ -121,13 +121,14 @@ class HianimeExtractor:
         self._user_data_dir = None  # Add this line
 
     def run(self):
-        anime: Anime | None = (  # type: ignore
+        anime: Anime | None = (
             self.get_anime_from_link(self.link)
             if self.link
             else (self.get_anime(self.name) if self.name else self.get_anime())
         )
 
         if not anime:
+            print(f"{Fore.LIGHTRED_EX}No anime found.")
             return
 
         # Display chosen anime details
@@ -295,10 +296,23 @@ class HianimeExtractor:
 
     def configure_driver(self) -> None:
         import tempfile
+        import random
+        import string
+        import subprocess
+        # Kill all Chrome processes before starting a new driver
+        try:
+            subprocess.run(["pkill", "-f", "chrome"], check=False)
+        except Exception:
+            pass
+
         mobile_emulation: dict[str, str] = {"deviceName": "iPhone X"}
         options: webdriver.ChromeOptions = webdriver.ChromeOptions()
-        # Create a temporary user data dir for this session
-        self._user_data_dir = tempfile.mkdtemp()
+        # Clean up any previous temp user data dir
+        if self._user_data_dir and os.path.exists(self._user_data_dir):
+            shutil.rmtree(self._user_data_dir, ignore_errors=True)
+        # Add a random suffix to the temp dir for uniqueness
+        rand_suffix = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
+        self._user_data_dir = tempfile.mkdtemp(prefix=f"hianime_chrome_{rand_suffix}_")
         options.add_argument(f"--user-data-dir={self._user_data_dir}")
         options.add_experimental_option("mobileEmulation", mobile_emulation)
         options.add_argument("--disable-blink-features=AutomationControlled")

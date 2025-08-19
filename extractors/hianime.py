@@ -1,5 +1,7 @@
 import json
 import os
+import tempfile
+import shutil
 import sys
 import time
 from argparse import Namespace
@@ -116,6 +118,7 @@ class HianimeExtractor:
         self.TITLE_TRANS: dict[int, Any] = str.maketrans(
             "", "", "".join(self.BAD_TITLE_CHARS)
         )
+        self._user_data_dir = None  # Add this line
 
     def run(self):
         anime: Anime | None = (  # type: ignore
@@ -228,6 +231,9 @@ class HianimeExtractor:
                     return
 
         self.driver.quit()
+        # Clean up the temp user data dir
+        if self._user_data_dir and os.path.exists(self._user_data_dir):
+            shutil.rmtree(self._user_data_dir)
         print()
         self.download_streams(anime, episode_list)
 
@@ -288,19 +294,16 @@ class HianimeExtractor:
         return HianimeExtractor.get_download_type()
 
     def configure_driver(self) -> None:
+        import tempfile
         mobile_emulation: dict[str, str] = {"deviceName": "iPhone X"}
-
         options: webdriver.ChromeOptions = webdriver.ChromeOptions()
-
-        # Create a temporary user data dir
-        # user_data_dir = tempfile.mkdtemp()
-        # options.add_argument(f"--user-data-dir={user_data_dir}")
-
+        # Create a temporary user data dir for this session
+        self._user_data_dir = tempfile.mkdtemp()
+        options.add_argument(f"--user-data-dir={self._user_data_dir}")
         options.add_experimental_option("mobileEmulation", mobile_emulation)
         options.add_argument("--disable-blink-features=AutomationControlled")
         options.add_argument("window-size=600,1000")
 
-        # options.add_argument("--disable-popup-blocking")
         options.add_experimental_option(
             "prefs",
             {
@@ -313,8 +316,6 @@ class HianimeExtractor:
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-notifications")
         options.add_argument("--disable-backgrounding-occluded-windows")
-        # options.add_argument("--load-extension=extensions" + os.sep + )
-
         options.add_argument("--disable-gpu")
         options.add_argument("--log-level=3")
         options.add_argument("--silent")
@@ -399,6 +400,10 @@ class HianimeExtractor:
 
             self.driver.requests.clear()
             self.driver.quit()
+            # Clean up the temporary user data directory if it was created
+            import shutil
+            if hasattr(self, '_user_data_dir') and os.path.exists(self._user_data_dir):
+                shutil.rmtree(self._user_data_dir, ignore_errors=True)
 
             selection = server_names[
                 get_int_in_range(

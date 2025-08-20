@@ -153,97 +153,34 @@ class HianimeExtractor:
         self._user_data_dir = None  # Add this line
 
     def run(self):
-        anime: Anime | None = (
-            self.get_anime_from_link(self.link)
-            if self.link
-            else (self.get_anime(self.name) if self.name else self.get_anime())
-        )
-        if not anime:
-            print(f"{Fore.LIGHTRED_EX}No anime found.")
-            return
-        # Always save to a folder named after the anime (slugified)
-        anime_folder = anime.name.lower().replace(' ', '-').replace('"', '').replace("'", "")
+        # Brute-force download all One Piece episodes from ep=2142 to ep=143880
+        anime_name = "One Piece"
+        anime_folder = anime_name.lower().replace(' ', '-')
         output_dir = os.path.join(self.args.output_dir, anime_folder)
         os.makedirs(output_dir, exist_ok=True)
         self.args.output_dir = output_dir
 
-        # Display chosen anime details
-        print(
-            Fore.LIGHTGREEN_EX
-            + "\nYou have chosen "
-            + Fore.LIGHTBLUE_EX
-            + anime.name
-            + Fore.LIGHTGREEN_EX
-            + f"\nURL: {Fore.LIGHTBLUE_EX}{anime.url}{Fore.LIGHTGREEN_EX}"
-            + "\nSub Episodes: "
-            + Fore.LIGHTYELLOW_EX
-            + str(anime.sub_episodes)
-            + Fore.LIGHTGREEN_EX
-            + "\nDub Episodes: "
-            + Fore.LIGHTYELLOW_EX
-            + str(anime.dub_episodes)
-            + Fore.LIGHTCYAN_EX
-        )
-
-        # Download type selection
-        if anime.sub_episodes != 0 and anime.dub_episodes != 0:
-            anime.download_type = self.get_download_type()
-        elif anime.dub_episodes == 0:
-            print("Dub episodes are not available. Defaulting to sub.")
-            anime.download_type = "sub"
-        else:
-            print("Sub episodes are not available. Defaulting to dub.")
-            anime.download_type = "dub"
-
-        number_of_episodes = getattr(anime, f"{anime.download_type}_episodes")
-        if number_of_episodes != 1:
-            start_ep = get_int_in_range(
-                f"{Fore.LIGHTCYAN_EX}Enter the starting episode number (inclusive):{Fore.LIGHTYELLOW_EX} ",
-                1,
-                number_of_episodes,
-            )
-            end_ep = get_int_in_range(
-                f"{Fore.LIGHTCYAN_EX}Enter the ending episode number (inclusive):{Fore.LIGHTYELLOW_EX} ",
-                1,
-                number_of_episodes,
-            )
-        else:
-            start_ep = 1
-            end_ep = 1
-
-        anime.season_number = get_int_in_range(
-            f"{Fore.LIGHTCYAN_EX}Enter the season number for this anime:{Fore.LIGHTYELLOW_EX} "
-        )
-
-        # Prompt for streaming server
-        servers = ["HD-1", "HD-2", "HD-3", "HD-4"]
-        print(f"\n{Fore.LIGHTGREEN_EX}Select the server you want to download from:")
-        for i, server in enumerate(servers):
-            print(f"{Fore.LIGHTRED_EX} {i + 1}: {Fore.LIGHTCYAN_EX}{server}")
-        server_idx = get_int_in_range(f"\n{Fore.LIGHTCYAN_EX}Server:{Fore.LIGHTYELLOW_EX} ", 1, len(servers)) - 1
-        anime.server = servers[server_idx]
-
-        # Dummy/test episode URLs
-        episode_list = [
-            {"url": f"https://hianime.to/stream/{anime.server.lower()}/{i}", "number": i, "title": f"Episode {i}"}
-            for i in range(start_ep, end_ep + 1)
-        ]
-
-        print()
-        for episode in episode_list:
-            url = episode["url"]
-            number = episode["number"]
-            title = episode["title"]
-            print(
-                Fore.LIGHTGREEN_EX
-                + "Getting"
-                + Fore.LIGHTWHITE_EX
-                + f" Episode {number} - {title} from {url}"
-                + Fore.LIGHTWHITE_EX
-            )
-            out_name = f"{anime.name}_S{anime.season_number:02d}E{number:02d}_{anime.download_type}"
-            self.yt_dlp_download(url, self.HEADERS, os.path.join(output_dir, out_name))
-        # Selenium is never called in this test/dummy mode
+        print(f"{Fore.LIGHTGREEN_EX}Starting brute-force download for {anime_name} episodes (ep=2142 to ep=143880)...")
+        base_url = "https://hianime.to/watch/one-piece-100?ep="
+        start_ep = 2142
+        end_ep = 143880
+        for ep_id in range(start_ep, end_ep + 1):
+            url = f"{base_url}{ep_id}"
+            out_name = f"{anime_name}_ep{ep_id}"
+            print(f"{Fore.LIGHTCYAN_EX}Trying episode ep={ep_id}...", end=" ")
+            try:
+                # Check if the page exists (status 200)
+                resp = requests.get(url, headers=self.HEADERS, timeout=10)
+                if resp.status_code == 404:
+                    print(f"{Fore.LIGHTRED_EX}404 Not Found, skipping.")
+                    continue
+                elif resp.status_code != 200:
+                    print(f"{Fore.LIGHTRED_EX}HTTP {resp.status_code}, skipping.")
+                    continue
+                print(f"{Fore.LIGHTGREEN_EX}Found! Downloading...")
+                self.yt_dlp_download(url, self.HEADERS, os.path.join(output_dir, out_name))
+            except Exception as e:
+                print(f"{Fore.LIGHTRED_EX}Error: {e}, skipping.")
 
     def download_streams(self, anime: Anime, episodes: list[dict[str, Any]]):
         print(f"{Fore.LIGHTCYAN_EX}Starting download for {len(episodes)} episodes...")
